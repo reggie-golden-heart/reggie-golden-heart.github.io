@@ -21,9 +21,9 @@
   const FIREBASE_BASE_URL = 'https://blog-site-50c99-default-rtdb.firebaseio.com';
 
   const STORAGE_KEYS = {
-    POSTS_CACHE: 'reggie_blog_posts_cache_v5',
-    PROFILE_CACHE: 'reggie_blog_profile_cache_v5',
-    LIKED_POSTS: 'reggie_blog_liked_ids_v5',
+    POSTS_CACHE: 'reggie_blog_posts_cache_v7',
+    PROFILE_CACHE: 'reggie_blog_profile_cache_v7',
+    LIKED_POSTS: 'reggie_blog_liked_ids_v7',
     ADMIN_AUTH: 'reggie_blog_admin_auth_v1'
   };
 
@@ -35,7 +35,7 @@
     plainPasswordFallback: 'reggie123456'
   };
 
-  // Исходные посты фотодневника (все счётчики лапок с нуля, без заглушек)
+  // Исходные посты фотодневника (базовый счетчик по 6 лапок на каждый пост)
   const DEFAULT_POSTS = [
     {
       id: 'reggie-post-01',
@@ -43,7 +43,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-snow.jpg' }
       ],
       text: 'Официально заявляю: свежий снег на вкус — 10 из 10! ❄️🐾 Проинспектировал первый сугроб, зарылся носом до самого дна и собрал коллекцию идеальных снежинок прямо на усах. Зима, я готов к сугробам!',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-11-04T16:00:00.000Z',
       comments: []
     },
@@ -53,7 +53,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-portrait.jpg' }
       ],
       text: 'Тот самый фирменный взгляд, когда услышал шуршание пакета с сыром за три комнаты от кухни 🧀✨ Говорят, золотистые ретриверы умеют улыбаться глазами. Ну правда же, как можно отказать этому взгляду?',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-11-02T13:20:00.000Z',
       comments: []
     },
@@ -65,7 +65,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-car-sleepy.jpg' }
       ],
       text: 'Хроники автопутешествий Рэджи 🚗💨 Листайте карусель:\n1️⃣ Главный штурман контролирует маршрут строго между сиденьями.\n2️⃣ Ловлю тёплые лучи солнца и кайфую от скорости.\n3️⃣ Полный собачий дзен и релакс в гамаке — когда укачало под любимую музыку.',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-10-26T11:15:00.000Z',
       comments: []
     },
@@ -75,7 +75,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-blue-hood.jpg' }
       ],
       text: 'Сказали, на улице осенний ветер, поэтому экипировали по последнему слову собачьей моды 🧢💙 Теперь я похож то ли на космонавта, то ли на стильного сибирского хаски. Зато уши в тепле и комфорте!',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-10-18T17:40:00.000Z',
       comments: []
     },
@@ -85,7 +85,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-window.jpg' }
       ],
       text: 'Минутка собачьей философии у вечернего окна 🪟🌙 Подбородок в надёжной руке Человека, за стеклом зажигаются городские огни, а дома пахнет ужином и уютом. Золотое сердце бьётся в ритме спокойствия.',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-10-10T19:25:00.000Z',
       comments: []
     },
@@ -95,7 +95,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-birthday.jpg' }
       ],
       text: 'Праздничный день и любимый торт! 🎂🎉 Самый вкусный тортик с нашей совместной фотографией и кучей сердечек. Бесконечные игры, погони за бабочками, искренняя любовь и счастливые виляния хвостом!',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-09-30T15:00:00.000Z',
       comments: []
     },
@@ -105,7 +105,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-beavers.jpg' }
       ],
       text: 'Провёл важные дипломатические переговоры с местными бобрами у лесного ручья 🪵🦫 Подошёл на цыпочках, осторожно обнюхал — пахнут сосной, ведут себя подозрительно неподвижно. Проверка пройдена, территория под контролем!',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-09-15T13:30:00.000Z',
       comments: []
     },
@@ -115,7 +115,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-bears.jpg' }
       ],
       text: 'Ночная сказка в парке ✨🐻 Встретили целое семейство светящихся белых медведей! Решил не лаять, а гордо сесть рядом для фото — показать, кто здесь самый дружелюбный великан с золотым сердцем.',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-08-28T21:45:00.000Z',
       comments: []
     },
@@ -125,7 +125,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-forest.jpg' }
       ],
       text: 'Летняя экспедиция в сосновый бор 🌲🌾 Солнце, птичьи трели, аромат клевера и мой любимый Человек рядом. Набегался так, что язык еле помещается во рту — вот оно, абсолютное собачье счастье!',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-08-10T10:45:00.000Z',
       comments: []
     },
@@ -135,7 +135,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-twilight.jpg' }
       ],
       text: 'Вечерний час тишины 🌅 Розовый закат, прохладная трава и мой стильный ошейник. Люблю после активных догонялок просто лечь на поляне и слушать, как засыпает вечерний парк.',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-07-22T21:10:00.000Z',
       comments: []
     },
@@ -145,7 +145,7 @@
         { type: 'photo', url: 'assets/reggie/reggie-walk.jpg' }
       ],
       text: 'Бодрый утренний шаг! ☀️🐾 Уши назад, хвост трубой, поводок натянут ровно настолько, чтобы успевать исследовать каждый встречный куст. Всем пушистого, бодрого и радостного дня!',
-      likes: 0,
+      likes: 6,
       createdAt: '2026-07-05T09:20:00.000Z',
       comments: []
     }
@@ -390,7 +390,7 @@
       post.comments = [];
     }
     if (typeof post.likes !== 'number' || post.likes < 0) {
-      post.likes = 0;
+      post.likes = 6;
     }
     if (typeof post.text !== 'string') {
       post.text = post.text ? String(post.text) : '';
@@ -419,7 +419,7 @@
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (!data) return null;
+      if (!data) return []; // База действительно пуста
 
       let rawPosts = [];
       if (Array.isArray(data)) {
@@ -432,8 +432,32 @@
       normalized.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       return normalized;
     } catch (err) {
-      console.warn('Ошибка связи с Firebase:', err);
+      console.warn('Ошибка связи с Firebase при загрузке постов:', err);
+      return null; // null означает ошибку сети / тайм-аут
+    }
+  }
+
+  // Загрузка актуальных счётчиков лайков из Firebase (/likes.json)
+  async function fetchCloudLikes() {
+    try {
+      const res = await fetch(`${FIREBASE_BASE_URL}/likes.json`, { cache: 'no-cache' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
       return null;
+    }
+  }
+
+  // Быстрое атомарное сохранение одного лайка в облако
+  async function savePostLikeToCloud(postId, likesCount) {
+    try {
+      await fetch(`${FIREBASE_BASE_URL}/likes/${encodeURIComponent(postId)}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(likesCount)
+      });
+    } catch (e) {
+      console.warn('Не удалось отправить лайк в облако:', e);
     }
   }
 
@@ -477,14 +501,33 @@
     state.isSyncing = true;
 
     try {
-      const cloudPosts = await fetchCloudPosts();
-      const cloudProfile = await fetchCloudProfile();
+      const [cloudPosts, cloudProfile, cloudLikes] = await Promise.all([
+        fetchCloudPosts(),
+        fetchCloudProfile(),
+        fetchCloudLikes()
+      ]);
 
       let postsToUse = cloudPosts;
-      if (!postsToUse || postsToUse.length === 0) {
+
+      // Если cloudPosts === null — была ошибка сети/таймаут. НЕ перезаписываем базу!
+      if (postsToUse === null) {
+        postsToUse = (state.posts && state.posts.length > 0)
+          ? state.posts
+          : JSON.parse(JSON.stringify(DEFAULT_POSTS)).map(normalizePostMedia);
+      } else if (postsToUse.length === 0) {
+        // База данных действительно пуста при первой установке
         postsToUse = JSON.parse(JSON.stringify(DEFAULT_POSTS)).map(normalizePostMedia);
         postsToUse.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
         await saveCloudPosts(postsToUse);
+      }
+
+      // Синхронизируем счётчики лапок с облачным узлом /likes.json
+      if (cloudLikes && typeof cloudLikes === 'object') {
+        postsToUse.forEach(p => {
+          if (cloudLikes[p.id] !== undefined) {
+            p.likes = Math.max(0, Number(cloudLikes[p.id]) || 0);
+          }
+        });
       }
 
       if (cloudProfile) {
@@ -1289,8 +1332,14 @@
     localStorage.setItem(STORAGE_KEYS.LIKED_POSTS, JSON.stringify(Array.from(state.likedPostIds)));
     updateCounters();
 
-    // Синхронизируем счётчик лайков с Firebase
-    await saveCloudPosts(state.posts);
+    // Обновляем хэш немедленно, чтобы фоновый опрос не перезатёр свежий локальный клик
+    state.lastSyncHash = JSON.stringify(state.posts.map(p => ({ id: p.id, likes: p.likes, c: (p.comments || []).length })));
+
+    // 1. Быстрое атомарное сохранение одного лайка в облако
+    savePostLikeToCloud(postId, post.likes);
+
+    // 2. Фоновое сохранение общего массива постов в кэш и Firebase
+    saveCloudPosts(state.posts);
   }
 
   function toggleCommentsDrawer(postId, card) {
@@ -1577,7 +1626,16 @@
     initAdminAuth();
 
     // 2. Быстро загружаем сохраненные лайки пользователя
-    const cachedLiked = localStorage.getItem(STORAGE_KEYS.LIKED_POSTS);
+    let cachedLiked = localStorage.getItem(STORAGE_KEYS.LIKED_POSTS);
+    if (!cachedLiked) {
+      // Плавная миграция с предыдущих версий
+      cachedLiked = localStorage.getItem('reggie_blog_liked_ids_v6') || 
+                    localStorage.getItem('reggie_blog_liked_ids_v5') || 
+                    localStorage.getItem('reggie_blog_liked_ids_v4');
+      if (cachedLiked) {
+        localStorage.setItem(STORAGE_KEYS.LIKED_POSTS, cachedLiked);
+      }
+    }
     if (cachedLiked) {
       try { state.likedPostIds = new Set(JSON.parse(cachedLiked)); } catch (e) {}
     }
@@ -1587,13 +1645,19 @@
     if (cachedPosts) {
       try {
         const parsed = JSON.parse(cachedPosts);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           state.posts = parsed.filter(Boolean).map(normalizePostMedia).filter(Boolean);
           state.posts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
           renderProfile();
           renderFeed();
         }
       } catch (e) {}
+    } else {
+      // При отсутствии кэша сразу показываем посты по умолчанию с 6 лапками
+      state.posts = JSON.parse(JSON.stringify(DEFAULT_POSTS)).map(normalizePostMedia);
+      state.posts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      renderProfile();
+      renderFeed();
     }
 
     // 4. Синхронизируем с Firebase в реальном времени
