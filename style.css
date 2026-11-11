@@ -512,12 +512,12 @@ body {
   flex-shrink: 0;
 }
 
-/* --- ЧИСТЫЙ И ЛАКОНИЧНЫЙ КРЕАТОР ЗАПИСЕЙ (Только текст + плюсик для медиа) --- */
+/* --- ЧИСТЫЙ И ЛАКОНИЧНЫЙ КРЕАТОР ЗАПИСЕЙ --- */
 .quick-creator-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
-  padding: 20px 24px;
+  padding: 22px 24px;
   box-shadow: var(--shadow-card);
   margin-bottom: 26px;
   transition: box-shadow var(--transition-smooth);
@@ -525,6 +525,13 @@ body {
 
 .quick-creator-card:focus-within {
   box-shadow: var(--shadow-card-hover);
+}
+
+.quick-creator-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .quick-creator-body {
@@ -539,17 +546,38 @@ body {
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #FFFFFF;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: block;
+}
+
+.creator-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.creator-header-hint {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-primary-hover);
+  line-height: 1.3;
+}
+
+.creator-header-badge {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
 }
 
 .quick-input-area {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
 .quick-textarea {
   width: 100%;
-  min-height: 58px;
+  box-sizing: border-box;
+  min-height: 68px;
   max-height: 180px;
   resize: vertical;
   background-color: var(--bg-input);
@@ -640,12 +668,12 @@ body {
   transform: scale(1.1);
 }
 
-/* Нижняя строка креатора: плюсик для медиа + кнопка "Опубликовать" */
+/* Нижняя строка креатора: медиа + кнопка "Опубликовать" */
 .quick-creator-bottom-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 12px;
+  margin-top: 14px;
   gap: 12px;
 }
 
@@ -655,10 +683,11 @@ body {
   gap: 10px;
 }
 
-/* Кнопка с плюсиком */
+/* Кнопка добавления медиа */
 .btn-attach-media {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   background-color: var(--bg-card-subtle);
   border: 1px solid var(--border-subtle);
@@ -670,6 +699,12 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn-attach-media span {
+  white-space: nowrap;
 }
 
 .btn-attach-media:hover {
@@ -679,24 +714,33 @@ body {
   transform: translateY(-1px);
 }
 
-.attach-plus-icon {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-primary);
+.btn-attach-media:active {
+  transform: translateY(0);
+}
+
+.attach-icon {
+  font-size: 1.15rem;
   line-height: 1;
 }
 
+.attach-label {
+  white-space: nowrap;
+}
+
 .attached-count-badge {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--color-primary-hover);
   background-color: var(--color-primary-light);
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: var(--radius-pill);
+  white-space: nowrap;
 }
 
-.btn-publish {
-  padding: 0 26px;
+#inlinePublishBtn {
+  min-width: 150px;
 }
 
 .hidden-file-input {
@@ -1771,11 +1815,13 @@ body {
 
   /* Креатор на мобильном */
   .quick-creator-card {
-    padding: 16px;
+    padding: 16px 14px;
+    margin-bottom: 20px;
   }
 
-  .quick-creator-body {
+  .quick-creator-header {
     gap: 10px;
+    margin-bottom: 10px;
   }
 
   .quick-avatar-mini img {
@@ -1783,18 +1829,74 @@ body {
     height: 38px;
   }
 
-  .quick-creator-bottom-bar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+  .creator-header-hint {
+    font-size: 0.95rem;
   }
 
-  .attach-label {
-    display: none;
+  .creator-header-badge {
+    font-size: 0.74rem;
+  }
+
+  .quick-textarea {
+    padding: 10px 12px;
+    font-size: 0.92rem;
+    min-height: 64px;
+  }
+
+  .quick-creator-bottom-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .media-attach-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .btn-attach-media {
-    padding: 8px 14px;
+    flex: 1;
+    min-width: 130px;
+    height: 42px;
+    padding: 0 14px;
+    font-size: 0.88rem;
+    white-space: nowrap;
+    justify-content: center;
+  }
+
+  .attach-label {
+    display: inline;
+    white-space: nowrap;
+  }
+
+  .attached-count-badge {
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 12px;
+    font-size: 0.82rem;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  #inlinePublishBtn {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 44px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: var(--radius-pill);
+    box-shadow: 0 4px 14px rgba(212, 140, 70, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Лента на мобильном — строго 1 колонка */
@@ -1821,12 +1923,27 @@ body {
     font-size: 1.1rem;
   }
 
+  .modal-backdrop {
+    padding: 12px;
+  }
+
   .modal-dialog {
     max-height: 94vh;
     border-radius: var(--radius-md);
+    width: 100%;
   }
 
   .modal-header, .modal-form, .modal-footer {
-    padding: 16px 18px;
+    padding: 16px 16px;
+  }
+
+  .modal-footer {
+    display: flex;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    flex: 1;
+    height: 42px;
   }
 }

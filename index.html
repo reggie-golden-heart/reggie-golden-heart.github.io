@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=20261111_admin_v1">
+  <link rel="stylesheet" href="style.css?v=20261111_mobile_fix2">
 </head>
 <body>
   <!-- Background Decorative Shapes / Warm Ambient -->
@@ -96,7 +96,7 @@
 
     <!-- Clean & Minimalist Post Creator (Панель добавления историй - доступна админу) -->
     <section class="quick-creator-card" id="quickCreatorSection" aria-label="Создание новой публикации" style="display: none;">
-      <div class="quick-creator-body">
+      <div class="quick-creator-header">
         <div class="quick-avatar-mini">
           <img 
             id="quickAvatarMini" 
@@ -105,49 +105,51 @@
             onerror="this.src='assets/avatar.jpg'"
           >
         </div>
-        <div class="quick-input-area">
-          <div class="creator-header-hint">
-            <span>✨ Новая история от Рэджи (фото и видео)</span>
-          </div>
-          <textarea 
-            id="inlinePostText" 
-            class="quick-textarea" 
-            placeholder="Что нового, Рэджи? Расскажите историю..." 
-            rows="2"
-          ></textarea>
+        <div class="creator-header-info">
+          <div class="creator-header-hint">✨ Новая история от Рэджи</div>
+          <div class="creator-header-badge">Панель автора (фото и видео)</div>
+        </div>
+      </div>
 
-          <!-- Горизонтальная лента предпросмотра прикрепленных медиафайлов (фото/видео) -->
-          <div class="attached-media-tray" id="attachedMediaTray" style="display: none;">
-            <div class="media-previews-list" id="mediaPreviewsList"></div>
-          </div>
+      <div class="quick-input-area">
+        <textarea 
+          id="inlinePostText" 
+          class="quick-textarea" 
+          placeholder="Что нового, Рэджи? Расскажите историю..." 
+          rows="3"
+        ></textarea>
 
-          <!-- Нижняя строка: плюсик для добавления фото/видео + кнопка "Опубликовать" -->
-          <div class="quick-creator-bottom-bar">
-            <div class="media-attach-group">
-              <!-- Скрытый инпут с поддержкой множественного выбора картинок и видео -->
-              <input 
-                type="file" 
-                id="mediaFilesInput" 
-                class="hidden-file-input" 
-                multiple 
-                accept="image/*,video/*"
-              >
-              <button 
-                type="button" 
-                class="btn-attach-media" 
-                id="btnAttachMedia" 
-                title="Добавить фото или видео"
-              >
-                <span class="attach-icon">📸 / 🎥</span>
-                <span>Добавить медиа</span>
-              </button>
-              <span class="attached-count-badge" id="attachedCountBadge" style="display: none;">0 файлов</span>
-            </div>
+        <!-- Горизонтальная лента предпросмотра прикрепленных медиафайлов (фото/видео) -->
+        <div class="attached-media-tray" id="attachedMediaTray" style="display: none;">
+          <div class="media-previews-list" id="mediaPreviewsList"></div>
+        </div>
 
-            <button type="button" class="btn btn-primary" id="inlinePublishBtn">
-              Опубликовать 🐾
+        <!-- Нижняя строка: выбор медиафайлов + кнопка публикации -->
+        <div class="quick-creator-bottom-bar">
+          <div class="media-attach-group">
+            <!-- Скрытый инпут с поддержкой множественного выбора картинок и видео -->
+            <input 
+              type="file" 
+              id="mediaFilesInput" 
+              class="hidden-file-input" 
+              multiple 
+              accept="image/*,video/*"
+            >
+            <button 
+              type="button" 
+              class="btn-attach-media" 
+              id="btnAttachMedia" 
+              title="Добавить фото или видео"
+            >
+              <span class="attach-icon">📷</span>
+              <span class="attach-label">Добавить медиа</span>
             </button>
+            <span class="attached-count-badge" id="attachedCountBadge" style="display: none;">0 файлов</span>
           </div>
+
+          <button type="button" class="btn btn-primary" id="inlinePublishBtn">
+            Опубликовать 🐾
+          </button>
         </div>
       </div>
     </section>
