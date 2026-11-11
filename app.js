@@ -199,6 +199,8 @@
     mediaPreviewsList: document.getElementById('mediaPreviewsList'),
     attachedCountBadge: document.getElementById('attachedCountBadge'),
     inlinePublishBtn: document.getElementById('inlinePublishBtn'),
+    aiAssistantWrapper: document.getElementById('aiAssistantWrapper'),
+    btnAiCompose: document.getElementById('btnAiCompose'),
 
     // Feed & Filters
     filterTabs: document.querySelectorAll('.filter-tab'),
@@ -229,7 +231,15 @@
     deleteConfirmModal: document.getElementById('deleteConfirmModal'),
     closeDeleteModalBtn: document.getElementById('closeDeleteModalBtn'),
     cancelDeleteBtn: document.getElementById('cancelDeleteBtn'),
-    confirmDeletePostBtn: document.getElementById('confirmDeletePostBtn')
+    confirmDeletePostBtn: document.getElementById('confirmDeletePostBtn'),
+
+    // Gemini API Key Modal
+    apiKeyModal: document.getElementById('apiKeyModal'),
+    apiKeyForm: document.getElementById('apiKeyForm'),
+    geminiApiKeyInput: document.getElementById('geminiApiKeyInput'),
+    closeApiKeyModalBtn: document.getElementById('closeApiKeyModalBtn'),
+    cancelApiKeyBtn: document.getElementById('cancelApiKeyBtn'),
+    btnAdminAiKey: document.getElementById('btnAdminAiKey')
   };
 
   // ==========================================================================
@@ -616,12 +626,14 @@
     const count = state.attachedMediaList.length;
     if (count === 0) {
       DOM.attachedMediaTray.style.display = 'none';
+      if (DOM.aiAssistantWrapper) DOM.aiAssistantWrapper.style.display = 'none';
       if (DOM.attachedCountBadge) DOM.attachedCountBadge.style.display = 'none';
       DOM.mediaPreviewsList.innerHTML = '';
       return;
     }
 
     DOM.attachedMediaTray.style.display = 'block';
+    if (DOM.aiAssistantWrapper) DOM.aiAssistantWrapper.style.display = 'block';
     if (DOM.attachedCountBadge) {
       DOM.attachedCountBadge.style.display = 'inline-block';
       const word = count === 1 ? 'файл' : count < 5 ? 'файла' : 'файлов';
@@ -728,6 +740,13 @@
       if (DOM.inlinePostText) DOM.inlinePostText.value = '';
       state.attachedMediaList = [];
       renderAttachedMediaTray();
+      if (DOM.btnAiCompose) {
+        DOM.btnAiCompose.innerHTML = `
+          <span class="ai-sparkle-icon">✨</span>
+          <span class="ai-btn-text">Придумать историю с ИИ</span>
+          <span class="ai-model-tag">Gemini</span>
+        `;
+      }
       renderFeed();
 
       // Сохраняем в Firebase
@@ -735,6 +754,257 @@
 
       DOM.inlinePublishBtn.disabled = false;
       DOM.inlinePublishBtn.textContent = originalBtnText;
+    });
+  }
+
+  // ==========================================================================
+  // 3.1. ИИ-ПОМОЩНИК НАПИСАНИЯ ПОСТОВ (GOOGLE GEMINI MULTIMODAL API)
+  // ==========================================================================
+
+  // Получение ключа: localStorage -> Firebase -> дефолтный
+  async function getGeminiApiKey() {
+    let key = localStorage.getItem('reggie_gemini_api_key');
+    if (!key) {
+      try {
+        const res = await fetch(`${FIREBASE_BASE_URL}/config/geminiApiKey.json`);
+        if (res.ok) {
+          const cloudKey = await res.json();
+          if (cloudKey && typeof cloudKey === 'string') {
+            key = cloudKey.trim();
+            localStorage.setItem('reggie_gemini_api_key', key);
+          }
+        }
+      } catch (e) {}
+    }
+    return key || '';
+  }
+
+  // Сохранение нового ключа
+  async function saveGeminiApiKey(key) {
+    if (!key) return;
+    const cleanKey = key.trim();
+    localStorage.setItem('reggie_gemini_api_key', cleanKey);
+    try {
+      await fetch(`${FIREBASE_BASE_URL}/config/geminiApiKey.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cleanKey)
+      });
+    } catch (e) {
+      console.warn('Не удалось синхронизировать ключ с облаком:', e);
+    }
+  }
+
+  function openApiKeyModal() {
+    if (!DOM.apiKeyModal) return;
+    DOM.apiKeyModal.style.display = 'flex';
+    if (DOM.geminiApiKeyInput) {
+      getGeminiApiKey().then(k => {
+        if (DOM.geminiApiKeyInput) DOM.geminiApiKeyInput.value = k || '';
+      });
+    }
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeApiKeyModal() {
+    if (!DOM.apiKeyModal) return;
+    DOM.apiKeyModal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  // Извлечение кадра из видеофайла для нейросети
+  function extractVideoFrame(videoUrl) {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.src = videoUrl;
+      video.muted = true;
+      video.crossOrigin = 'anonymous';
+      video.currentTime = 0.5;
+      video.onloadeddata = () => {
+        video.currentTime = Math.min(1, (video.duration || 2) / 2);
+      };
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let w = video.videoWidth || 640;
+          let h = video.videoHeight || 480;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        } catch (e) {
+          resolve(null);
+        }
+      };
+      video.onerror = () => resolve(null);
+      setTimeout(() => resolve(null), 3500);
+    });
+  }
+
+  // Генерация текста поста с помощью ИИ
+  async function generatePostWithAI() {
+    if (!DOM.btnAiCompose || !DOM.inlinePostText) return;
+
+    if (!state.attachedMediaList || state.attachedMediaList.length === 0) {
+      alert('Пожалуйста, сначала прикрепите хотя бы одно фото или видео 📸');
+      return;
+    }
+
+    const apiKey = await getGeminiApiKey();
+    if (!apiKey) {
+      openApiKeyModal();
+      return;
+    }
+
+    DOM.btnAiCompose.disabled = true;
+    DOM.btnAiCompose.classList.add('loading');
+    const originalBtnHtml = DOM.btnAiCompose.innerHTML;
+    DOM.btnAiCompose.innerHTML = `
+      <span class="ai-sparkle-icon">🐾</span>
+      <span class="ai-btn-text">Рэджи сочиняет историю...</span>
+    `;
+
+    try {
+      const parts = [];
+
+      const promptText = `Ты — золотистый ретривер по имени Рэджи из уютного блога «Рэджи Золотое Сердце».
+Посмотри на прикрепленное фото или кадр из видео и сочини душевный, живой и добрый пост от своего лица («я», «мой Человек»).
+Стиль: жизнерадостный, искренний, с лёгким собачьим юмором (про сугробы, вкусняшки, шуршание пакета с сыром, прогулки, обнимашки).
+Объем: 2-4 предложения. Добавь 2-3 милых эмодзи (🐾, ✨, 🐶 и т.д.).
+Важно: выведи ТОЛЬКО готовый текст истории без кавычек, заголовков и служебных пометок.`;
+
+      parts.push({ text: promptText });
+
+      for (let i = 0; i < Math.min(state.attachedMediaList.length, 3); i++) {
+        const item = state.attachedMediaList[i];
+        let dataUrl = item.url;
+
+        if (item.type === 'video') {
+          dataUrl = await extractVideoFrame(item.url);
+        }
+
+        if (dataUrl && typeof dataUrl === 'string' && dataUrl.startsWith('data:')) {
+          const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (match) {
+            parts.push({
+              inline_data: {
+                mime_type: match[1],
+                data: match[2]
+              }
+            });
+          }
+        }
+      }
+
+      // Список моделей Gemini для надежного фолбэка
+      const modelsToTry = [
+        'gemini-3.5-flash',
+        'gemini-3.8-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-flash-latest'
+      ];
+
+      let generatedText = null;
+      let lastError = null;
+
+      for (const model of modelsToTry) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }]
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const candidate = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (candidate && candidate.trim()) {
+              generatedText = candidate.trim();
+              break;
+            }
+          } else {
+            const errBody = await response.text();
+            lastError = `HTTP ${response.status}: ${errBody}`;
+          }
+        } catch (netErr) {
+          lastError = netErr.message;
+        }
+      }
+
+      if (generatedText) {
+        generatedText = generatedText.replace(/^["'«»]+|["'«»]+$/g, '').trim();
+
+        DOM.inlinePostText.value = generatedText;
+
+        DOM.inlinePostText.style.height = 'auto';
+        DOM.inlinePostText.style.height = Math.min(240, Math.max(72, DOM.inlinePostText.scrollHeight)) + 'px';
+        DOM.inlinePostText.focus();
+
+        DOM.btnAiCompose.innerHTML = `
+          <span class="ai-sparkle-icon">✨</span>
+          <span class="ai-btn-text">Сочинить другой вариант с ИИ</span>
+          <span class="ai-model-tag">Готово</span>
+        `;
+      } else {
+        throw new Error(lastError || 'Не удалось получить ответ от нейросети');
+      }
+
+    } catch (err) {
+      console.error('Ошибка генерации ИИ:', err);
+      alert('Не удалось сочинить историю через ИИ. Попробуйте еще раз или проверьте настройки ключа.');
+      DOM.btnAiCompose.innerHTML = originalBtnHtml;
+    } finally {
+      DOM.btnAiCompose.disabled = false;
+      DOM.btnAiCompose.classList.remove('loading');
+    }
+  }
+
+  // Обработчики ИИ и модального окна ключа
+  if (DOM.btnAiCompose) {
+    DOM.btnAiCompose.addEventListener('click', generatePostWithAI);
+  }
+
+  if (DOM.btnAdminAiKey) {
+    DOM.btnAdminAiKey.addEventListener('click', openApiKeyModal);
+  }
+
+  if (DOM.closeApiKeyModalBtn) {
+    DOM.closeApiKeyModalBtn.addEventListener('click', closeApiKeyModal);
+  }
+
+  if (DOM.cancelApiKeyBtn) {
+    DOM.cancelApiKeyBtn.addEventListener('click', closeApiKeyModal);
+  }
+
+  if (DOM.apiKeyModal) {
+    DOM.apiKeyModal.addEventListener('click', (e) => {
+      if (e.target === DOM.apiKeyModal) closeApiKeyModal();
+    });
+  }
+
+  if (DOM.apiKeyForm) {
+    DOM.apiKeyForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const val = DOM.geminiApiKeyInput ? DOM.geminiApiKeyInput.value.trim() : '';
+      if (val) {
+        await saveGeminiApiKey(val);
+        closeApiKeyModal();
+        alert('Ключ Google Gemini API успешно сохранен! 🐾');
+      }
     });
   }
 

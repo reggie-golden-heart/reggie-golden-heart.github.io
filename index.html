@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=20261111_mobile_fix2">
+  <link rel="stylesheet" href="style.css?v=20261111_ai_v1">
 </head>
 <body>
   <!-- Background Decorative Shapes / Warm Ambient -->
@@ -47,6 +47,7 @@
         <div class="admin-session-pill" id="adminSessionPill" style="display: none;">
           <span class="admin-status-dot"></span>
           <span class="admin-name-label">Рэджи 🐾</span>
+          <button type="button" class="btn-admin-ai-key" id="btnAdminAiKey" title="Настройки Google Gemini API ключа">🔑</button>
           <button type="button" class="btn-admin-logout" id="adminLogoutBtn" title="Выйти из режима автора">✕</button>
         </div>
       </div>
@@ -122,6 +123,15 @@
         <!-- Горизонтальная лента предпросмотра прикрепленных медиафайлов (фото/видео) -->
         <div class="attached-media-tray" id="attachedMediaTray" style="display: none;">
           <div class="media-previews-list" id="mediaPreviewsList"></div>
+        </div>
+
+        <!-- Кнопка ИИ-помощника: появляется только когда прикреплено фото или видео -->
+        <div class="ai-assistant-wrapper" id="aiAssistantWrapper" style="display: none;">
+          <button type="button" class="btn-ai-compose" id="btnAiCompose" title="ИИ поможет написать пост по фото или видео в стиле Рэджи">
+            <span class="ai-sparkle-icon">✨</span>
+            <span class="ai-btn-text">Придумать историю с ИИ</span>
+            <span class="ai-model-tag">Gemini</span>
+          </button>
         </div>
 
         <!-- Нижняя строка: выбор медиафайлов + кнопка публикации -->
@@ -256,10 +266,42 @@
     </div>
   </div>
 
+  <!-- Modal: Настройки Gemini API для ИИ -->
+  <div class="modal-backdrop" id="apiKeyModal" role="dialog" aria-modal="true" aria-labelledby="apiKeyModalTitle" style="display: none;">
+    <div class="modal-dialog modal-dialog-sm">
+      <div class="modal-header">
+        <h2 class="modal-title" id="apiKeyModalTitle">Настройки ИИ (Gemini API) ✨</h2>
+        <button type="button" class="modal-close-btn" id="closeApiKeyModalBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <form id="apiKeyForm" class="modal-form">
+        <div class="form-group">
+          <label for="geminiApiKeyInput" class="form-label">Google Gemini API Key:</label>
+          <input 
+            type="password" 
+            id="geminiApiKeyInput" 
+            class="form-input" 
+            required 
+            placeholder="Вставьте ваш API ключ"
+            autocomplete="off"
+          >
+          <small style="display: block; margin-top: 6px; font-size: 0.78rem; color: var(--color-text-muted); line-height: 1.4;">
+            Ключ используется для генерации историй по фото и видео в стиле Рэджи. Сохраняется в вашей защищенной базе данных и браузере.
+          </small>
+        </div>
+
+        <div class="modal-footer" style="margin-top: 16px;">
+          <button type="button" class="btn btn-ghost" id="cancelApiKeyBtn">Отмена</button>
+          <button type="submit" class="btn btn-primary" id="saveApiKeyBtn">Сохранить 🐾</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Floating Toast Notifications -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
   <!-- Core JavaScript с версионированием для сброса кэша на мобильных устройствах -->
-  <script src="app.js?v=20261111_paws_fix6"></script>
+  <script src="app.js?v=20261111_ai_v1"></script>
 </body>
 </html>
