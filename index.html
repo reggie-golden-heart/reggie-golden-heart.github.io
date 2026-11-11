@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=20261104_reggie_v3">
+  <link rel="stylesheet" href="style.css?v=20261111_admin_v1">
 </head>
 <body>
   <!-- Background Decorative Shapes / Warm Ambient -->
@@ -37,6 +37,19 @@
         <button type="button" class="nav-link active" data-action="all">Все истории</button>
         <button type="button" class="nav-link" data-action="liked">Понравившиеся 🐾</button>
       </nav>
+
+      <!-- Right Header Actions (Кнопка входа для пользователей / админа) -->
+      <div class="header-actions">
+        <button type="button" class="btn-login-nav" id="adminLoginToggleBtn" title="Войти в профиль">
+          <span class="login-icon">👤</span>
+          <span class="login-text">Вход</span>
+        </button>
+        <div class="admin-session-pill" id="adminSessionPill" style="display: none;">
+          <span class="admin-status-dot"></span>
+          <span class="admin-name-label">Рэджи 🐾</span>
+          <button type="button" class="btn-admin-logout" id="adminLogoutBtn" title="Выйти из режима автора">✕</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -81,6 +94,64 @@
       </div>
     </section>
 
+    <!-- Clean & Minimalist Post Creator (Панель добавления историй - доступна админу) -->
+    <section class="quick-creator-card" id="quickCreatorSection" aria-label="Создание новой публикации" style="display: none;">
+      <div class="quick-creator-body">
+        <div class="quick-avatar-mini">
+          <img 
+            id="quickAvatarMini" 
+            src="assets/avatar.jpg" 
+            alt="Рэджи"
+            onerror="this.src='assets/avatar.jpg'"
+          >
+        </div>
+        <div class="quick-input-area">
+          <div class="creator-header-hint">
+            <span>✨ Новая история от Рэджи (фото и видео)</span>
+          </div>
+          <textarea 
+            id="inlinePostText" 
+            class="quick-textarea" 
+            placeholder="Что нового, Рэджи? Расскажите историю..." 
+            rows="2"
+          ></textarea>
+
+          <!-- Горизонтальная лента предпросмотра прикрепленных медиафайлов (фото/видео) -->
+          <div class="attached-media-tray" id="attachedMediaTray" style="display: none;">
+            <div class="media-previews-list" id="mediaPreviewsList"></div>
+          </div>
+
+          <!-- Нижняя строка: плюсик для добавления фото/видео + кнопка "Опубликовать" -->
+          <div class="quick-creator-bottom-bar">
+            <div class="media-attach-group">
+              <!-- Скрытый инпут с поддержкой множественного выбора картинок и видео -->
+              <input 
+                type="file" 
+                id="mediaFilesInput" 
+                class="hidden-file-input" 
+                multiple 
+                accept="image/*,video/*"
+              >
+              <button 
+                type="button" 
+                class="btn-attach-media" 
+                id="btnAttachMedia" 
+                title="Добавить фото или видео"
+              >
+                <span class="attach-icon">📸 / 🎥</span>
+                <span>Добавить медиа</span>
+              </button>
+              <span class="attached-count-badge" id="attachedCountBadge" style="display: none;">0 файлов</span>
+            </div>
+
+            <button type="button" class="btn btn-primary" id="inlinePublishBtn">
+              Опубликовать 🐾
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Feed Controls: Filters -->
     <section class="feed-header-section">
       <div class="feed-filters-bar" role="tablist" aria-label="Фильтры публикаций">
@@ -117,10 +188,76 @@
     </div>
   </div>
 
-  <!-- Floating Toast Notifications (отключены) -->
-  <div class="toast-container" id="toastContainer" aria-live="polite" style="display: none !important;"></div>
+  <!-- Modal: Вход для пользователей / админа -->
+  <div class="modal-backdrop" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle" style="display: none;">
+    <div class="modal-dialog modal-dialog-sm">
+      <div class="modal-header">
+        <h2 class="modal-title" id="loginModalTitle">Вход в профиль 🐾</h2>
+        <button type="button" class="modal-close-btn" id="closeLoginModalBtn" aria-label="Закрыть">✕</button>
+      </div>
+
+      <form id="adminLoginForm" class="modal-form">
+        <div class="form-group">
+          <label for="loginUsername" class="form-label">Логин:</label>
+          <input 
+            type="text" 
+            id="loginUsername" 
+            class="form-input" 
+            required 
+            autocomplete="username" 
+            placeholder="Введите логин"
+            autocapitalize="none"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="loginPassword" class="form-label">Пароль:</label>
+          <input 
+            type="password" 
+            id="loginPassword" 
+            class="form-input" 
+            required 
+            autocomplete="current-password" 
+            placeholder="Введите пароль"
+          >
+        </div>
+
+        <div class="form-group remember-group" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+          <input type="checkbox" id="loginRememberMe" checked style="accent-color: var(--color-primary); width: 16px; height: 16px; cursor: pointer;">
+          <label for="loginRememberMe" style="font-size: 0.88rem; color: var(--color-text-muted); cursor: pointer; user-select: none;">Запомнить вход на этом устройстве</label>
+        </div>
+
+        <div class="login-error-msg" id="loginErrorMsg" style="display: none; color: #DC2626; font-size: 0.86rem; margin-top: 6px; padding: 6px 10px; background: rgba(220, 38, 38, 0.08); border-radius: 6px;"></div>
+
+        <div class="modal-footer" style="margin-top: 16px;">
+          <button type="button" class="btn btn-ghost" id="cancelLoginBtn">Отмена</button>
+          <button type="submit" class="btn btn-primary" id="submitLoginBtn">Войти</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Подтверждение удаления публикации (только для автора) -->
+  <div class="modal-backdrop" id="deleteConfirmModal" role="dialog" aria-modal="true" style="display: none;">
+    <div class="modal-dialog modal-dialog-sm">
+      <div class="modal-header">
+        <h2 class="modal-title">Удалить запись? 🗑️</h2>
+        <button type="button" class="modal-close-btn" id="closeDeleteModalBtn" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-text" style="color: var(--color-text-muted); line-height: 1.5;">Вы уверены, что хотите удалить эту публикацию из дневника Рэджи? Запись будет удалена на всех устройствах.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="cancelDeleteBtn">Отмена</button>
+        <button type="button" class="btn btn-danger" id="confirmDeletePostBtn" style="background-color: var(--color-danger); color: #fff;">Да, удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Toast Notifications -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
   <!-- Core JavaScript с версионированием для сброса кэша на мобильных устройствах -->
-  <script src="app.js?v=20261104_reggie_v3"></script>
+  <script src="app.js?v=20261111_admin_v1"></script>
 </body>
 </html>

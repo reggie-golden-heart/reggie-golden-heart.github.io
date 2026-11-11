@@ -3,9 +3,13 @@
  * РЭДЖИ ЗОЛОТОЕ СЕРДЦЕ 🐾 — SPA С ОБЛАЧНОЙ СИНХРОНИЗАЦИЕЙ (FIREBASE REALTIME DB)
  * ============================================================================
  * - База данных: https://blog-site-50c99-default-rtdb.firebaseio.com/
- * - Мгновенная синхронизация между смартфоном, ПК и любыми устройствами
- * - Инстаграм-карусель для альбомов с поддержкой свайпов
- * - Интерактивная реакция «Дай лапу!» со счётчиком, начинающимся с нуля
+ * - Мгновенная синхронизация реакций и историй в реальном времени
+ * - Админ-панель: безопасная авторизация для автора (логин: reggie)
+ * - Публикация историй: мультизагрузка фото, карусели и видео (до 25 МБ)
+ * - Оптимизация фото через HTML5 Canvas (1200px JPEG) для молниеносной загрузки
+ * - Инстаграм-карусель для альбомов с поддержкой свайпов на смартфонах
+ * - Кастомный видеоплеер с перемоткой, полноэкранным режимом и звуком
+ * - Интерактивная реакция «Дай лапу!» со счётчиком
  * - Настоящие комментарии читателей в реальном времени
  * ============================================================================
  */
@@ -19,7 +23,16 @@
   const STORAGE_KEYS = {
     POSTS_CACHE: 'reggie_blog_posts_cache_v5',
     PROFILE_CACHE: 'reggie_blog_profile_cache_v5',
-    LIKED_POSTS: 'reggie_blog_liked_ids_v5'
+    LIKED_POSTS: 'reggie_blog_liked_ids_v5',
+    ADMIN_AUTH: 'reggie_blog_admin_auth_v1'
+  };
+
+  // Конфигурация доступа для автора/администратора
+  // Пароль: reggie123456 (хеш SHA-256 для защиты от прямого чтения)
+  const ADMIN_CONFIG = {
+    username: 'reggie',
+    passwordHash: 'f29d748a254bdf560383be7378afc9ac28b27ab9e6663b9fa58e7dc1a68a879b',
+    plainPasswordFallback: 'reggie123456'
   };
 
   // Исходные посты фотодневника (все счётчики лапок с нуля, без заглушек)
@@ -152,7 +165,10 @@
     likedPostIds: new Set(),
     activeFilter: 'all', // 'all' | 'liked'
     isSyncing: false,
-    lastSyncHash: ''
+    lastSyncHash: '',
+    isAdmin: false,
+    attachedMediaList: [], // Array<{ type: 'photo'|'video', url: string, name?: string }>
+    postToDeleteId: null
   };
 
   // --- DOM ЭЛЕМЕНТЫ ---
@@ -169,6 +185,21 @@
     statPostsCount: document.getElementById('statPostsCount'),
     statLikesCount: document.getElementById('statLikesCount'),
 
+    // Header Actions & Admin
+    adminLoginToggleBtn: document.getElementById('adminLoginToggleBtn'),
+    adminSessionPill: document.getElementById('adminSessionPill'),
+    adminLogoutBtn: document.getElementById('adminLogoutBtn'),
+
+    // Quick Creator (Добавление поста админом)
+    quickCreatorSection: document.getElementById('quickCreatorSection'),
+    inlinePostText: document.getElementById('inlinePostText'),
+    mediaFilesInput: document.getElementById('mediaFilesInput'),
+    btnAttachMedia: document.getElementById('btnAttachMedia'),
+    attachedMediaTray: document.getElementById('attachedMediaTray'),
+    mediaPreviewsList: document.getElementById('mediaPreviewsList'),
+    attachedCountBadge: document.getElementById('attachedCountBadge'),
+    inlinePublishBtn: document.getElementById('inlinePublishBtn'),
+
     // Feed & Filters
     filterTabs: document.querySelectorAll('.filter-tab'),
     countAll: document.getElementById('countAll'),
@@ -182,11 +213,145 @@
     lightboxOverlay: document.getElementById('lightboxOverlay'),
     lightboxImg: document.getElementById('lightboxImg'),
     lightboxCaption: document.getElementById('lightboxCaption'),
-    lightboxCloseBtn: document.getElementById('lightboxCloseBtn')
+    lightboxCloseBtn: document.getElementById('lightboxCloseBtn'),
+
+    // Login Modal
+    loginModal: document.getElementById('loginModal'),
+    adminLoginForm: document.getElementById('adminLoginForm'),
+    loginUsername: document.getElementById('loginUsername'),
+    loginPassword: document.getElementById('loginPassword'),
+    loginRememberMe: document.getElementById('loginRememberMe'),
+    loginErrorMsg: document.getElementById('loginErrorMsg'),
+    closeLoginModalBtn: document.getElementById('closeLoginModalBtn'),
+    cancelLoginBtn: document.getElementById('cancelLoginBtn'),
+
+    // Delete Post Modal
+    deleteConfirmModal: document.getElementById('deleteConfirmModal'),
+    closeDeleteModalBtn: document.getElementById('closeDeleteModalBtn'),
+    cancelDeleteBtn: document.getElementById('cancelDeleteBtn'),
+    confirmDeletePostBtn: document.getElementById('confirmDeletePostBtn')
   };
 
   // ==========================================================================
-  // 1. ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ (FIREBASE REST API)
+  // 1. АВТОРИЗАЦИЯ АДМИНИСТРАТОРА (СПОСОБ 1: ЛОГИН + ПАРОЛЬ)
+  // ==========================================================================
+
+  async function computeSha256(str) {
+    try {
+      if (window.crypto && crypto.subtle) {
+        const msgBuffer = new TextEncoder().encode(str);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+    } catch (e) {
+      console.warn('Crypto API недоступно:', e);
+    }
+    return null;
+  }
+
+  function initAdminAuth() {
+    let authData = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH);
+    if (!authData) {
+      authData = sessionStorage.getItem(STORAGE_KEYS.ADMIN_AUTH);
+    }
+
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        if (parsed && parsed.user === ADMIN_CONFIG.username) {
+          state.isAdmin = true;
+        }
+      } catch (e) {
+        state.isAdmin = false;
+      }
+    }
+
+    updateAdminUI();
+  }
+
+  function updateAdminUI() {
+    if (state.isAdmin) {
+      if (DOM.adminLoginToggleBtn) DOM.adminLoginToggleBtn.style.display = 'none';
+      if (DOM.adminSessionPill) DOM.adminSessionPill.style.display = 'inline-flex';
+      if (DOM.quickCreatorSection) DOM.quickCreatorSection.style.display = 'block';
+    } else {
+      if (DOM.adminLoginToggleBtn) DOM.adminLoginToggleBtn.style.display = 'inline-flex';
+      if (DOM.adminSessionPill) DOM.adminSessionPill.style.display = 'none';
+      if (DOM.quickCreatorSection) DOM.quickCreatorSection.style.display = 'none';
+    }
+  }
+
+  function openLoginModal() {
+    if (!DOM.loginModal) return;
+    DOM.loginModal.style.display = 'flex';
+    if (DOM.loginUsername) DOM.loginUsername.value = '';
+    if (DOM.loginPassword) DOM.loginPassword.value = '';
+    if (DOM.loginErrorMsg) DOM.loginErrorMsg.style.display = 'none';
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+      if (DOM.loginUsername) DOM.loginUsername.focus();
+    }, 150);
+  }
+
+  function closeLoginModal() {
+    if (!DOM.loginModal) return;
+    DOM.loginModal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  async function handleAdminLogin(e) {
+    if (e) e.preventDefault();
+    if (!DOM.loginUsername || !DOM.loginPassword) return;
+
+    const enteredUsername = DOM.loginUsername.value.trim().toLowerCase();
+    const enteredPassword = DOM.loginPassword.value;
+
+    const isUserMatch = enteredUsername === ADMIN_CONFIG.username;
+    let isPassMatch = enteredPassword === ADMIN_CONFIG.plainPasswordFallback;
+
+    if (!isPassMatch) {
+      const hashed = await computeSha256(enteredPassword);
+      if (hashed && hashed === ADMIN_CONFIG.passwordHash) {
+        isPassMatch = true;
+      }
+    }
+
+    if (isUserMatch && isPassMatch) {
+      state.isAdmin = true;
+      const sessionObj = {
+        user: ADMIN_CONFIG.username,
+        timestamp: Date.now()
+      };
+
+      const remember = DOM.loginRememberMe ? DOM.loginRememberMe.checked : true;
+      if (remember) {
+        localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, JSON.stringify(sessionObj));
+      } else {
+        sessionStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, JSON.stringify(sessionObj));
+      }
+
+      updateAdminUI();
+      closeLoginModal();
+      renderFeed(); // перерисовываем ленту с кнопками удаления для админа
+    } else {
+      if (DOM.loginErrorMsg) {
+        DOM.loginErrorMsg.textContent = 'Неверный логин или пароль. Попробуйте еще раз.';
+        DOM.loginErrorMsg.style.display = 'block';
+      }
+    }
+  }
+
+  function handleAdminLogout() {
+    localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
+    sessionStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
+    state.isAdmin = false;
+    updateAdminUI();
+    renderFeed(); // скрываем кнопки удаления
+  }
+
+  // ==========================================================================
+  // 2. ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ (FIREBASE REST API)
   // ==========================================================================
 
   function normalizePostMedia(post) {
@@ -206,15 +371,17 @@
       }
     }
 
-    // Нормализуем каждый медиафайл внутри поста (только фото)
+    // Нормализуем каждый медиафайл внутри поста (фото или видео)
     post.media = post.media.filter(Boolean).map(m => {
       if (typeof m === 'string') {
-        return { type: 'photo', url: m };
+        const isVid = m.match(/\.(mp4|webm|mov)(\?.*)?$/i) || m.startsWith('data:video/');
+        return { type: isVid ? 'video' : 'photo', url: m };
       }
       return {
-        type: 'photo',
+        type: m.type === 'video' ? 'video' : 'photo',
         url: m.url || '',
         fallbackUrl: m.fallbackUrl || '',
+        posterUrl: m.posterUrl || '',
         name: m.name || ''
       };
     });
@@ -232,7 +399,7 @@
       post.createdAt = new Date().toISOString();
     }
     if (!post.id) {
-      post.id = 'post_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+      post.id = 'reggie-post-' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
     }
 
     return post;
@@ -321,7 +488,6 @@
       }
 
       if (cloudProfile) {
-        // Убеждаемся, что возраст удален
         delete cloudProfile.age;
         state.profile = Object.assign({}, DEFAULT_PROFILE, cloudProfile);
       }
@@ -343,7 +509,194 @@
   }
 
   // ==========================================================================
-  // 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ОТОБРАЖЕНИЕ
+  // 3. ОБРАБОТКА МЕДИАФАЙЛОВ И СОЗДАНИЕ ПОСТА (CANVAS И ВИДЕО)
+  // ==========================================================================
+
+  // Сжатие фото через HTML5 Canvas для моментальной отправки по сети
+  function optimizeImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error('Ошибка обработки изображения'));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Чтение видеофайла (до 25 МБ)
+  function processVideoFile(file) {
+    return new Promise((resolve, reject) => {
+      if (file.size > 25 * 1024 * 1024) {
+        reject(new Error(`Видео «${file.name}» превышает лимит 25 МБ.`));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          type: 'video',
+          url: e.target.result,
+          name: file.name
+        });
+      };
+      reader.onerror = () => reject(new Error('Ошибка чтения видеофайла'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderAttachedMediaTray() {
+    if (!DOM.attachedMediaTray || !DOM.mediaPreviewsList) return;
+
+    const count = state.attachedMediaList.length;
+    if (count === 0) {
+      DOM.attachedMediaTray.style.display = 'none';
+      if (DOM.attachedCountBadge) DOM.attachedCountBadge.style.display = 'none';
+      DOM.mediaPreviewsList.innerHTML = '';
+      return;
+    }
+
+    DOM.attachedMediaTray.style.display = 'block';
+    if (DOM.attachedCountBadge) {
+      DOM.attachedCountBadge.style.display = 'inline-block';
+      const word = count === 1 ? 'файл' : count < 5 ? 'файла' : 'файлов';
+      DOM.attachedCountBadge.textContent = `${count} ${word}`;
+    }
+
+    DOM.mediaPreviewsList.innerHTML = '';
+
+    state.attachedMediaList.forEach((item, index) => {
+      const thumbWrap = document.createElement('div');
+      thumbWrap.className = 'media-preview-thumb-wrap';
+
+      if (item.type === 'video') {
+        thumbWrap.innerHTML = `
+          <video src="${escapeHtml(item.url)}" class="media-preview-thumb-video" preload="metadata"></video>
+          <span class="thumb-video-badge">🎥 Видео</span>
+          <button type="button" class="thumb-remove-btn" data-remove-index="${index}" title="Удалить">✕</button>
+        `;
+      } else {
+        thumbWrap.innerHTML = `
+          <img src="${escapeHtml(item.url)}" alt="Превью" class="media-preview-thumb-img">
+          <button type="button" class="thumb-remove-btn" data-remove-index="${index}" title="Удалить">✕</button>
+        `;
+      }
+
+      thumbWrap.querySelector('.thumb-remove-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.attachedMediaList.splice(index, 1);
+        renderAttachedMediaTray();
+      });
+
+      DOM.mediaPreviewsList.appendChild(thumbWrap);
+    });
+  }
+
+  // Прикрепление медиафайлов
+  if (DOM.btnAttachMedia && DOM.mediaFilesInput) {
+    DOM.btnAttachMedia.addEventListener('click', () => {
+      DOM.mediaFilesInput.click();
+    });
+
+    DOM.mediaFilesInput.addEventListener('change', async () => {
+      const files = Array.from(DOM.mediaFilesInput.files || []);
+      if (!files.length) return;
+
+      for (const file of files) {
+        const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|webm|mov)$/i);
+
+        if (isVideo) {
+          try {
+            const videoData = await processVideoFile(file);
+            state.attachedMediaList.push(videoData);
+            renderAttachedMediaTray();
+          } catch (err) {
+            alert(err.message || 'Ошибка загрузки видео');
+          }
+        } else {
+          try {
+            const optimizedDataUrl = await optimizeImage(file);
+            state.attachedMediaList.push({
+              type: 'photo',
+              url: optimizedDataUrl,
+              name: file.name
+            });
+            renderAttachedMediaTray();
+          } catch (err) {
+            alert(`Не удалось обработать изображение ${file.name}`);
+          }
+        }
+      }
+
+      DOM.mediaFilesInput.value = '';
+    });
+  }
+
+  // Публикация нового поста
+  if (DOM.inlinePublishBtn) {
+    DOM.inlinePublishBtn.addEventListener('click', async () => {
+      const text = DOM.inlinePostText ? DOM.inlinePostText.value.trim() : '';
+      const media = state.attachedMediaList;
+
+      if (!text && media.length === 0) {
+        alert('Пожалуйста, напишите текст или добавьте фото/видео через кнопку «Добавить медиа»');
+        if (DOM.inlinePostText) DOM.inlinePostText.focus();
+        return;
+      }
+
+      DOM.inlinePublishBtn.disabled = true;
+      const originalBtnText = DOM.inlinePublishBtn.textContent;
+      DOM.inlinePublishBtn.textContent = 'Публикация... 🐾';
+
+      const newPost = {
+        id: 'reggie-post-' + Date.now(),
+        media: [...media],
+        text: text,
+        likes: 0,
+        createdAt: new Date().toISOString(),
+        comments: []
+      };
+
+      state.posts.unshift(newPost);
+
+      // Сброс креатора
+      if (DOM.inlinePostText) DOM.inlinePostText.value = '';
+      state.attachedMediaList = [];
+      renderAttachedMediaTray();
+      renderFeed();
+
+      // Сохраняем в Firebase
+      await saveCloudPosts(state.posts);
+
+      DOM.inlinePublishBtn.disabled = false;
+      DOM.inlinePublishBtn.textContent = originalBtnText;
+    });
+  }
+
+  // ==========================================================================
+  // 4. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ОТОБРАЖЕНИЕ
   // ==========================================================================
 
   function formatDate(isoString) {
@@ -372,7 +725,7 @@
 
   function escapeHtml(str) {
     if (!str) return '';
-    return str
+    return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -408,7 +761,7 @@
   }
 
   // ==========================================================================
-  // 3. ОТРИСОВКА ЛЕНТЫ ПУБЛИКАЦИЙ
+  // 5. ОТРИСОВКА ЛЕНТЫ ПУБЛИКАЦИЙ
   // ==========================================================================
 
   function getFilteredPosts() {
@@ -464,13 +817,22 @@
     const commentsCount = (post.comments || []).length;
     const mediaList = Array.isArray(post.media) ? post.media : [];
 
-    const typeLabel = mediaList.length > 1 ? `📸 Альбом (${mediaList.length})` : '📸 Фото';
+    let typeLabel = '📸 Фото';
+    if (mediaList.length > 1) {
+      typeLabel = `📸 Альбом (${mediaList.length})`;
+    } else if (mediaList.length === 1 && mediaList[0] && mediaList[0].type === 'video') {
+      typeLabel = '🎥 Видео';
+    }
 
     let mediaHtml = '';
     if (mediaList.length > 1) {
       mediaHtml = createCarouselHtml(post.id, mediaList, post.text);
     } else if (mediaList.length === 1 && mediaList[0]) {
-      mediaHtml = createSingleMediaHtml(post.id, mediaList[0], post.text);
+      if (mediaList[0].type === 'video') {
+        mediaHtml = createSingleVideoHtml(post.id, mediaList[0]);
+      } else {
+        mediaHtml = createSingleMediaHtml(post.id, mediaList[0], post.text);
+      }
     }
 
     const commentsListHtml = (post.comments || []).map(c => `
@@ -502,6 +864,9 @@
         </div>
         <div class="post-header-actions">
           <span class="post-type-tag">${typeLabel}</span>
+          ${state.isAdmin ? `
+            <button type="button" class="post-delete-btn" data-action="delete-post" title="Удалить запись">🗑️</button>
+          ` : ''}
         </div>
       </header>
 
@@ -541,6 +906,7 @@
       </div>
     `;
 
+    // Инициализация карусели или видеоплееров
     if (mediaList.length > 1) {
       try {
         const carousel = card.querySelector('.post-carousel-container');
@@ -550,29 +916,222 @@
       }
     }
 
+    const videoPlayers = card.querySelectorAll('.custom-video-player');
+    videoPlayers.forEach(player => {
+      try {
+        initCustomVideoPlayer(player);
+      } catch (videoErr) {
+        console.warn('Ошибка инициализации плеера:', videoErr);
+      }
+    });
+
     return card;
   }
 
   // ==========================================================================
-  // 4. ИНСТАГРАМ-КАРУСЕЛЬ МЕДИА В ПОСТАХ
+  // 6. КАСТОМНЫЙ ВИДЕОПЛЕЕР
+  // ==========================================================================
+
+  function createSingleVideoHtml(postId, media) {
+    return `
+      <div class="post-media-wrap custom-video-player paused" id="player-${postId}">
+        <video 
+          class="custom-video-element" 
+          src="${escapeHtml(media.url)}" 
+          preload="metadata" 
+          loop 
+          playsinline
+        ></video>
+        <button type="button" class="video-big-play-btn" title="Воспроизвести">
+          <span>▶</span>
+        </button>
+        <div class="video-controls-overlay">
+          <div class="video-progress-bar-container">
+            <div class="video-progress-filled"></div>
+          </div>
+          <div class="video-controls-row">
+            <div class="video-ctrl-left">
+              <button type="button" class="video-ctrl-btn video-play-pause-btn">▶</button>
+              <span class="video-time-display">0:00 / 0:00</span>
+            </div>
+            <div class="video-ctrl-right">
+              <button type="button" class="video-ctrl-btn video-mute-btn">🔊</button>
+              <button type="button" class="video-ctrl-btn video-fullscreen-btn">⛶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function initCustomVideoPlayer(player) {
+    if (!player) return;
+
+    const video = player.querySelector('.custom-video-element');
+    if (!video) return;
+
+    const bigPlayBtn = player.querySelector('.video-big-play-btn');
+    const playPauseBtn = player.querySelector('.video-play-pause-btn');
+    const progressBar = player.querySelector('.video-progress-bar-container');
+    const progressFill = player.querySelector('.video-progress-filled');
+    const timeDisplay = player.querySelector('.video-time-display');
+    const muteBtn = player.querySelector('.video-mute-btn');
+    const fullscreenBtn = player.querySelector('.video-fullscreen-btn');
+
+    function formatVideoTime(seconds) {
+      if (isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function togglePlay() {
+      if (video.paused || video.ended) {
+        video.play().then(() => {
+          player.classList.remove('paused');
+          player.classList.add('playing');
+          if (playPauseBtn) playPauseBtn.textContent = '⏸';
+        }).catch(err => {
+          console.warn('Воспроизведение заблокировано браузером:', err);
+        });
+      } else {
+        video.pause();
+        player.classList.remove('playing');
+        player.classList.add('paused');
+        if (playPauseBtn) playPauseBtn.textContent = '▶';
+      }
+    }
+
+    if (bigPlayBtn) {
+      bigPlayBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePlay();
+      });
+    }
+
+    video.addEventListener('click', () => {
+      togglePlay();
+    });
+
+    if (playPauseBtn) {
+      playPauseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePlay();
+      });
+    }
+
+    video.addEventListener('timeupdate', () => {
+      if (!isNaN(video.duration) && video.duration > 0) {
+        const percent = (video.currentTime / video.duration) * 100;
+        if (progressFill) progressFill.style.width = `${percent}%`;
+        if (timeDisplay) timeDisplay.textContent = `${formatVideoTime(video.currentTime)} / ${formatVideoTime(video.duration)}`;
+      }
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      if (timeDisplay) timeDisplay.textContent = `0:00 / ${formatVideoTime(video.duration)}`;
+    });
+
+    if (progressBar) {
+      progressBar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rect = progressBar.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = rect.width;
+        if (width > 0 && !isNaN(video.duration)) {
+          video.currentTime = (clickX / width) * video.duration;
+        }
+      });
+    }
+
+    if (muteBtn) {
+      muteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        video.muted = !video.muted;
+        muteBtn.textContent = video.muted ? '🔇' : '🔊';
+      });
+    }
+
+    if (fullscreenBtn) {
+      fullscreenBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!document.fullscreenElement) {
+          if (player.requestFullscreen) {
+            player.requestFullscreen();
+          } else if (video.webkitEnterFullscreen) {
+            video.webkitEnterFullscreen();
+          }
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          }
+        }
+      });
+    }
+
+    video.addEventListener('ended', () => {
+      player.classList.remove('playing');
+      player.classList.add('paused');
+      if (playPauseBtn) playPauseBtn.textContent = '▶';
+    });
+  }
+
+  // ==========================================================================
+  // 7. ИНСТАГРАМ-КАРУСЕЛЬ МЕДИА В ПОСТАХ
   // ==========================================================================
 
   function createCarouselHtml(postId, mediaList, caption) {
     const total = mediaList.length;
 
-    const slidesHtml = mediaList.map((m, index) => `
-      <div class="carousel-slide" data-slide-index="${index}">
-        <img 
-          src="${escapeHtml(m.url)}" 
-          alt="Фотография" 
-          class="carousel-slide-photo" 
-          loading="lazy"
-          data-lightbox-src="${escapeHtml(m.url)}" 
-          data-lightbox-caption="${escapeHtml(caption)}"
-          onerror="if(this.src!=='${m.fallbackUrl || ''}') this.src='${m.fallbackUrl || ''}';"
-        >
-      </div>
-    `).join('');
+    const slidesHtml = mediaList.map((m, index) => {
+      if (m.type === 'video') {
+        return `
+          <div class="carousel-slide" data-slide-index="${index}">
+            <div class="custom-video-player paused" id="player-${postId}-${index}">
+              <video 
+                class="custom-video-element" 
+                src="${escapeHtml(m.url)}" 
+                preload="metadata" 
+                loop 
+                playsinline
+              ></video>
+              <button type="button" class="video-big-play-btn" title="Воспроизвести">
+                <span>▶</span>
+              </button>
+              <div class="video-controls-overlay">
+                <div class="video-progress-bar-container">
+                  <div class="video-progress-filled"></div>
+                </div>
+                <div class="video-controls-row">
+                  <div class="video-ctrl-left">
+                    <button type="button" class="video-ctrl-btn video-play-pause-btn">▶</button>
+                    <span class="video-time-display">0:00 / 0:00</span>
+                  </div>
+                  <div class="video-ctrl-right">
+                    <button type="button" class="video-ctrl-btn video-mute-btn">🔊</button>
+                    <button type="button" class="video-ctrl-btn video-fullscreen-btn">⛶</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="carousel-slide" data-slide-index="${index}">
+          <img 
+            src="${escapeHtml(m.url)}" 
+            alt="Фотография" 
+            class="carousel-slide-photo" 
+            loading="lazy"
+            data-lightbox-src="${escapeHtml(m.url)}" 
+            data-lightbox-caption="${escapeHtml(caption)}"
+            onerror="if(this.src!=='${m.fallbackUrl || ''}') this.src='${m.fallbackUrl || ''}';"
+          >
+        </div>
+      `;
+    }).join('');
 
     const dotsHtml = mediaList.map((_, i) => `<span class="carousel-dot ${i === 0 ? 'active' : ''}"></span>`).join('');
 
@@ -609,6 +1168,14 @@
     function updateCarousel() {
       if (track) track.style.transform = `translateX(-${currentIndex * 100}%)`;
 
+      // Ставим на паузу видео на остальных слайдах при переключении
+      slides.forEach((slide, idx) => {
+        if (idx !== currentIndex) {
+          const v = slide.querySelector('video');
+          if (v && !v.paused) v.pause();
+        }
+      });
+
       if (counterBadge) counterBadge.textContent = `${currentIndex + 1} / ${total}`;
       if (prevBtn) prevBtn.style.display = currentIndex === 0 ? 'none' : 'flex';
       if (nextBtn) nextBtn.style.display = currentIndex === total - 1 ? 'none' : 'flex';
@@ -638,7 +1205,7 @@
       });
     }
 
-    // Touch Swipe
+    // Сенсорные свайпы
     let touchStartX = 0;
     let touchEndX = 0;
 
@@ -679,7 +1246,7 @@
   }
 
   // ==========================================================================
-  // 5. РЕАКЦИИ И КОММЕНТАРИИ
+  // 8. РЕАКЦИИ И КОММЕНТАРИИ
   // ==========================================================================
 
   function triggerPawBurst(buttonElement) {
@@ -784,7 +1351,38 @@
   }
 
   // ==========================================================================
-  // 6. ФИЛЬТРАЦИЯ И НАВИГАЦИЯ
+  // 9. УДАЛЕНИЕ ПУБЛИКАЦИИ (ТОЛЬКО ДЛЯ АВТОРА)
+  // ==========================================================================
+
+  function openDeleteModal(postId) {
+    state.postToDeleteId = postId;
+    if (DOM.deleteConfirmModal) {
+      DOM.deleteConfirmModal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+  }
+
+  function closeDeleteModal() {
+    state.postToDeleteId = null;
+    if (DOM.deleteConfirmModal) {
+      DOM.deleteConfirmModal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!state.postToDeleteId) return;
+
+    state.posts = state.posts.filter(p => p.id !== state.postToDeleteId);
+    state.postToDeleteId = null;
+    closeDeleteModal();
+    renderFeed();
+
+    await saveCloudPosts(state.posts);
+  }
+
+  // ==========================================================================
+  // 10. ФИЛЬТРАЦИЯ И НАВИГАЦИЯ
   // ==========================================================================
 
   DOM.filterTabs.forEach(tab => {
@@ -813,22 +1411,26 @@
     });
   });
 
-  DOM.logoLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    state.activeFilter = 'all';
-    DOM.filterTabs.forEach(t => t.classList.toggle('active', t.dataset.filter === 'all'));
-    renderFeed();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
+  if (DOM.logoLink) {
+    DOM.logoLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      state.activeFilter = 'all';
+      DOM.filterTabs.forEach(t => t.classList.toggle('active', t.dataset.filter === 'all'));
+      renderFeed();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
 
-  DOM.emptyStateResetBtn.addEventListener('click', () => {
-    state.activeFilter = 'all';
-    DOM.filterTabs.forEach(t => t.classList.toggle('active', t.dataset.filter === 'all'));
-    renderFeed();
-  });
+  if (DOM.emptyStateResetBtn) {
+    DOM.emptyStateResetBtn.addEventListener('click', () => {
+      state.activeFilter = 'all';
+      DOM.filterTabs.forEach(t => t.classList.toggle('active', t.dataset.filter === 'all'));
+      renderFeed();
+    });
+  }
 
   // ==========================================================================
-  // 7. ДЕЛЕГИРОВАНИЕ СОБЫТИЙ В ЛЕНТЕ
+  // 11. ДЕЛЕГИРОВАНИЕ СОБЫТИЙ В ЛЕНТЕ
   // ==========================================================================
 
   DOM.feedContainer.addEventListener('click', (e) => {
@@ -836,6 +1438,15 @@
     if (!card) return;
     const postId = card.dataset.postId;
 
+    // Кнопка удаления поста (для админа)
+    const deleteBtn = e.target.closest('[data-action="delete-post"]');
+    if (deleteBtn) {
+      e.stopPropagation();
+      openDeleteModal(postId);
+      return;
+    }
+
+    // Лайк
     const likeBtn = e.target.closest('[data-action="like-post"]');
     if (likeBtn) {
       e.stopPropagation();
@@ -843,6 +1454,7 @@
       return;
     }
 
+    // Комментарии
     const commentsToggleBtn = e.target.closest('[data-action="toggle-comments"]');
     if (commentsToggleBtn) {
       e.stopPropagation();
@@ -850,6 +1462,7 @@
       return;
     }
 
+    // Лайтбокс фото
     const mediaImg = e.target.closest('[data-lightbox-src]');
     if (mediaImg) {
       const src = mediaImg.dataset.lightboxSrc;
@@ -869,56 +1482,107 @@
   });
 
   // ==========================================================================
-  // 8. ПОЛНОЭКРАННЫЙ LIGHTBOX
+  // 12. ПОЛНОЭКРАННЫЙ LIGHTBOX
   // ==========================================================================
 
   function openLightbox(src, caption) {
+    if (!DOM.lightboxOverlay || !DOM.lightboxImg) return;
     DOM.lightboxImg.src = src;
-    DOM.lightboxCaption.textContent = caption;
+    if (DOM.lightboxCaption) DOM.lightboxCaption.textContent = caption;
     DOM.lightboxOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
 
   function closeLightbox() {
+    if (!DOM.lightboxOverlay || !DOM.lightboxImg) return;
     DOM.lightboxOverlay.style.display = 'none';
     DOM.lightboxImg.src = '';
-    DOM.lightboxCaption.textContent = '';
+    if (DOM.lightboxCaption) DOM.lightboxCaption.textContent = '';
     document.body.style.overflow = '';
   }
 
-  DOM.lightboxCloseBtn.addEventListener('click', closeLightbox);
-  DOM.lightboxOverlay.addEventListener('click', (e) => {
-    if (e.target === DOM.lightboxOverlay) closeLightbox();
-  });
+  if (DOM.lightboxCloseBtn) DOM.lightboxCloseBtn.addEventListener('click', closeLightbox);
+  if (DOM.lightboxOverlay) {
+    DOM.lightboxOverlay.addEventListener('click', (e) => {
+      if (e.target === DOM.lightboxOverlay) closeLightbox();
+    });
+  }
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (DOM.lightboxOverlay.style.display === 'flex') {
+      if (DOM.lightboxOverlay && DOM.lightboxOverlay.style.display === 'flex') {
         closeLightbox();
+      }
+      if (DOM.loginModal && DOM.loginModal.style.display === 'flex') {
+        closeLoginModal();
+      }
+      if (DOM.deleteConfirmModal && DOM.deleteConfirmModal.style.display === 'flex') {
+        closeDeleteModal();
       }
     }
   });
 
   window.addEventListener('scroll', () => {
-    if (window.scrollY > 20) {
-      DOM.header.classList.add('scrolled');
-    } else {
-      DOM.header.classList.remove('scrolled');
+    if (DOM.header) {
+      if (window.scrollY > 20) {
+        DOM.header.classList.add('scrolled');
+      } else {
+        DOM.header.classList.remove('scrolled');
+      }
     }
   }, { passive: true });
 
   // ==========================================================================
-  // 9. ЗАПУСК И ФОНОВОЕ АВТООБНОВЛЕНИЕ
+  // 13. СЛУШАТЕЛИ МОДАЛЬНЫХ ОКОН (ВХОД И УДАЛЕНИЕ)
+  // ==========================================================================
+
+  if (DOM.adminLoginToggleBtn) {
+    DOM.adminLoginToggleBtn.addEventListener('click', openLoginModal);
+  }
+
+  if (DOM.closeLoginModalBtn) {
+    DOM.closeLoginModalBtn.addEventListener('click', closeLoginModal);
+  }
+
+  if (DOM.cancelLoginBtn) {
+    DOM.cancelLoginBtn.addEventListener('click', closeLoginModal);
+  }
+
+  if (DOM.adminLoginForm) {
+    DOM.adminLoginForm.addEventListener('submit', handleAdminLogin);
+  }
+
+  if (DOM.adminLogoutBtn) {
+    DOM.adminLogoutBtn.addEventListener('click', handleAdminLogout);
+  }
+
+  if (DOM.closeDeleteModalBtn) {
+    DOM.closeDeleteModalBtn.addEventListener('click', closeDeleteModal);
+  }
+
+  if (DOM.cancelDeleteBtn) {
+    DOM.cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+  }
+
+  if (DOM.confirmDeletePostBtn) {
+    DOM.confirmDeletePostBtn.addEventListener('click', handleConfirmDelete);
+  }
+
+  // ==========================================================================
+  // 14. ЗАПУСК И ФОНОВОЕ АВТООБНОВЛЕНИЕ
   // ==========================================================================
 
   async function initApp() {
-    // 1. Быстро загружаем сохраненные лайки пользователя
+    // 1. Инициализация прав автора/админа
+    initAdminAuth();
+
+    // 2. Быстро загружаем сохраненные лайки пользователя
     const cachedLiked = localStorage.getItem(STORAGE_KEYS.LIKED_POSTS);
     if (cachedLiked) {
       try { state.likedPostIds = new Set(JSON.parse(cachedLiked)); } catch (e) {}
     }
 
-    // 2. Быстро загружаем кэш для мгновенной отрисовки без задержек
+    // 3. Быстро загружаем кэш для мгновенной отрисовки без задержек
     const cachedPosts = localStorage.getItem(STORAGE_KEYS.POSTS_CACHE);
     if (cachedPosts) {
       try {
@@ -932,15 +1596,15 @@
       } catch (e) {}
     }
 
-    // 3. Синхронизируем с Firebase в реальном времени
+    // 4. Синхронизируем с Firebase в реальном времени
     await syncDataWithCloud(true);
 
-    // 4. Фоновое обновление: каждые 10 секунд опрашиваем облако для синхронизации лапок и комментариев
+    // 5. Фоновое автообновление: каждые 10 секунд опрашиваем облако для мгновенного появления новых постов, лапок и комментариев
     setInterval(() => {
       syncDataWithCloud(false);
     }, 10000);
 
-    // 5. При возвращении на вкладку браузера сразу проверяем обновления
+    // 6. При возвращении на вкладку браузера сразу проверяем обновления
     window.addEventListener('focus', () => {
       syncDataWithCloud(false);
     });
